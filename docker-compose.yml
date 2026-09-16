@@ -17,6 +17,9 @@ x-airflow-common: &airflow-common
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
+    # SimpleAuthManager (Airflow 3 default) ignores _AIRFLOW_WWW_USER_* and
+    # generates a random password; mounting this file pins admin/admin locally.
+    - ./airflow/simple_auth_manager_passwords.json:/opt/airflow/simple_auth_manager_passwords.json.generated
     - ./ingestion:/opt/airflow/ingestion
     - ./dbt:/opt/airflow/dbt
     - ./data:/opt/airflow/data
@@ -45,9 +48,6 @@ services:
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: "true"
-      _AIRFLOW_WWW_USER_CREATE: "true"
-      _AIRFLOW_WWW_USER_USERNAME: admin
-      _AIRFLOW_WWW_USER_PASSWORD: admin
 
   airflow-apiserver:
     <<: *airflow-common
