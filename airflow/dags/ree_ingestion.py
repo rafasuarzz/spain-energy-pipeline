@@ -10,6 +10,8 @@ Airflow concepts on display here:
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pendulum
 from airflow.sdk import dag, task
 
@@ -24,9 +26,15 @@ from ingestion.ree_client import INDICATORS, ingest
     tags=["ree", "ingestion", "raw"],
 )
 def ree_daily_ingestion():
-    @task
+    # DuckDB allows a single writer process: max_active_tis_per_dag=1 runs the
+    # mapped instances one at a time so they never fight over the file lock.
+    @task(max_active_tis_per_dag=1, retries=2, retry_delay=timedelta(seconds=30))
     def ingest_indicator(indicator: str, data_interval_start=None) -> int:
-        return ingest(indicator, data_interval_start.date())
+        # Manual runs carry no data interval (None) — fall back to yesterday.
+        from datetime import date, timedelta
+
+        day = data_interval_start.date() if data_interval_start else date.today() - timedelta(days=1)
+        return ingest(indicator, day)
 
     ingest_indicator.expand(indicator=list(INDICATORS))
 
