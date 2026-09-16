@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Data (raw files and warehouse are generated, never committed)
+data/raw/*
+data/warehouse/*
+!data/raw/.gitkeep
+!data/warehouse/.gitkeep
+
+# Secrets / local config
+.env
+
+# Airflow
+airflow/logs/
+airflow/plugins/
+
+# dbt
+dbt/spain_energy/target/
+dbt/spain_energy/dbt_packages/
+dbt/spain_energy/logs/
+.user.yml
+
+# Great Expectations
+great_expectations/uncommitted/
+
+# IDE
+.vscode/
+.idea/

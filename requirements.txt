@@ -1,0 +1,7 @@
+# Local development (ingestion + dbt + dashboard). Airflow deps live in airflow/requirements.txt.
+requests>=2.32
+duckdb>=1.1
+dbt-duckdb>=1.9
+streamlit>=1.40
+plotly>=5.24
+great-expectations>=1.3

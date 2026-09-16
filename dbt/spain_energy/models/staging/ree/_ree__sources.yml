@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: ree
+    description: Raw layer loaded by the Airflow ingestion DAG from the REE REData API.
+    schema: main
+    tables:
+      - name: raw_ree_indicators
+        description: One row per (indicator, series, data point). Idempotent per (indicator, extraction_day).
+        columns:
+          - name: indicator
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ["demand_realtime", "demand_daily", "generation_mix", "market_prices"]
+          - name: datetime_local
+            tests:
+              - not_null
+          - name: value
+            tests:
+              - not_null
