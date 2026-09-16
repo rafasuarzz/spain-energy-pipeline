@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: fct_demand_hourly
+    description: >
+      Hourly demand (real vs REE forecast) with prices and calendar features.
+      Training and benchmark table for the demand-forecasting model.
+    columns:
+      - name: hour_local
+        tests: [not_null, unique]
+      - name: demand_real_mw
+        tests:
+          - not_null:
+              config:
+                severity: warn
+
+  - name: fct_energy_daily
+    description: >
+      Daily demand, generation mix (renewable share) and market prices.
+      Base table for the merit-order (renewables vs price) analysis.
+    columns:
+      - name: energy_date
+        tests: [not_null, unique]
+      - name: renewable_share
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              config:
+                severity: warn

@@ -1,0 +1,17 @@
+technology,is_renewable
+Hidráulica,true
+Eólica,true
+Solar fotovoltaica,true
+Solar térmica,true
+Otras renovables,true
+Residuos renovables,true
+Hidroeólica,true
+Nuclear,false
+Ciclo combinado,false
+Carbón,false
+Fuel + Gas,false
+Cogeneración,false
+Motores diésel,false
+Turbina de gas,false
+Turbina de vapor,false
+Residuos no renovables,false

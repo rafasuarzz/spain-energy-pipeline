@@ -49,32 +49,38 @@ CREATE TABLE IF NOT EXISTS raw_ree_indicators (
 logger = logging.getLogger(__name__)
 
 
-def fetch_indicator(indicator: str, day: date) -> dict:
+def fetch_indicator(indicator: str, start: date, end: date) -> dict:
+    """Fetch one indicator for [start, end]. The API accepts up to ~1 month."""
     path, time_trunc = INDICATORS[indicator]
     params = {
-        "start_date": f"{day}T00:00",
-        "end_date": f"{day}T23:59",
+        "start_date": f"{start}T00:00",
+        "end_date": f"{end}T23:59",
         "time_trunc": time_trunc,
     }
     response = requests.get(
         f"{BASE_URL}/{path}",
         params=params,
         headers={"Accept": "application/json"},
-        timeout=30,
+        timeout=60,
     )
     response.raise_for_status()
     return response.json()
 
 
-def save_raw(indicator: str, day: date, payload: dict) -> Path:
-    target = RAW_DIR / indicator / f"{day}.json"
+def save_raw(indicator: str, start: date, end: date, payload: dict) -> Path:
+    name = f"{start}.json" if start == end else f"{start}_{end}.json"
+    target = RAW_DIR / indicator / name
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return target
 
 
-def load_to_duckdb(indicator: str, day: date, payload: dict) -> int:
-    """Flatten the REData 'included' series into one row per data point."""
+def load_to_duckdb(indicator: str, start: date, end: date, payload: dict) -> int:
+    """Flatten the REData 'included' series into one row per data point.
+
+    extraction_day is derived from each point's own datetime, so a range load
+    partitions correctly and re-loading any overlapping range stays idempotent.
+    """
     import duckdb
 
     rows = []
@@ -89,7 +95,7 @@ def load_to_duckdb(indicator: str, day: date, payload: dict) -> int:
                     point.get("datetime"),
                     point.get("value"),
                     point.get("percentage"),
-                    str(day),
+                    str(point.get("datetime", ""))[:10],
                 )
             )
 
@@ -97,8 +103,8 @@ def load_to_duckdb(indicator: str, day: date, payload: dict) -> int:
     with duckdb.connect(str(WAREHOUSE_PATH)) as con:
         con.execute(RAW_TABLE_DDL)
         con.execute(
-            "DELETE FROM raw_ree_indicators WHERE indicator = ? AND extraction_day = ?",
-            [indicator, str(day)],
+            "DELETE FROM raw_ree_indicators WHERE indicator = ? AND extraction_day BETWEEN ? AND ?",
+            [indicator, str(start), str(end)],
         )
         if rows:
             con.executemany(
@@ -113,12 +119,27 @@ def load_to_duckdb(indicator: str, day: date, payload: dict) -> int:
     return len(rows)
 
 
-def ingest(indicator: str, day: date) -> int:
-    payload = fetch_indicator(indicator, day)
-    raw_path = save_raw(indicator, day, payload)
-    n_rows = load_to_duckdb(indicator, day, payload)
-    logger.info("%s (%s): %d rows -> %s", indicator, day, n_rows, raw_path)
+def ingest_range(indicator: str, start: date, end: date) -> int:
+    payload = fetch_indicator(indicator, start, end)
+    raw_path = save_raw(indicator, start, end, payload)
+    n_rows = load_to_duckdb(indicator, start, end, payload)
+    logger.info("%s (%s..%s): %d rows -> %s", indicator, start, end, n_rows, raw_path)
     return n_rows
+
+
+def ingest(indicator: str, day: date) -> int:
+    """Single-day ingest, used by the daily Airflow DAG."""
+    return ingest_range(indicator, day, day)
+
+
+def month_chunks(start: date, end: date):
+    """Split [start, end] into calendar-month-sized chunks the API accepts."""
+    chunk_start = start
+    while chunk_start <= end:
+        next_month = (chunk_start.replace(day=1) + timedelta(days=32)).replace(day=1)
+        chunk_end = min(next_month - timedelta(days=1), end)
+        yield chunk_start, chunk_end
+        chunk_start = chunk_end + timedelta(days=1)
 
 
 def main() -> None:
@@ -128,14 +149,25 @@ def main() -> None:
     parser.add_argument(
         "--date",
         type=date.fromisoformat,
-        default=date.today() - timedelta(days=1),
-        help="Day to ingest (YYYY-MM-DD), defaults to yesterday",
+        default=None,
+        help="Single day to ingest (YYYY-MM-DD); defaults to yesterday if no range given",
     )
+    parser.add_argument("--start", type=date.fromisoformat, help="Range start (YYYY-MM-DD)")
+    parser.add_argument("--end", type=date.fromisoformat, help="Range end (YYYY-MM-DD)")
     args = parser.parse_args()
 
+    if (args.start is None) != (args.end is None):
+        parser.error("--start and --end must be given together")
+
     indicators = list(INDICATORS) if args.indicator == "all" else [args.indicator]
-    for indicator in indicators:
-        ingest(indicator, args.date)
+    if args.start:
+        for chunk_start, chunk_end in month_chunks(args.start, args.end):
+            for indicator in indicators:
+                ingest_range(indicator, chunk_start, chunk_end)
+    else:
+        day = args.date or date.today() - timedelta(days=1)
+        for indicator in indicators:
+            ingest(indicator, day)
 
 
 if __name__ == "__main__":

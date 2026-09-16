@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: stg_ree__demand
+    description: Electricity demand at 5-minute resolution, Madrid local time.
+    columns:
+      - name: measured_at_local
+        tests: [not_null]
+      - name: series
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["real", "forecast_ree", "scheduled", "scheduled_total"]
+      - name: demand_mw
+        tests: [not_null]
+
+  - name: stg_ree__demand_daily
+    description: Total daily demand in MWh.
+    columns:
+      - name: demand_date
+        tests: [not_null, unique]
+
+  - name: stg_ree__generation
+    description: Daily generation by technology with renewable classification.
+    columns:
+      - name: technology
+        tests: [not_null]
+      - name: is_renewable
+        description: Null means the technology is missing from the seed — extend it.
+        tests:
+          - not_null:
+              config:
+                severity: warn
+
+  - name: stg_ree__prices
+    description: PVPC and spot market prices in EUR/MWh.
+    columns:
+      - name: market
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["pvpc", "spot"]

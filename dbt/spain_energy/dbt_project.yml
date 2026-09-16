@@ -16,3 +16,9 @@ models:
       +materialized: view
     marts:
       +materialized: table
+
+seeds:
+  spain_energy:
+    generation_technologies:
+      +column_types:
+        is_renewable: boolean
