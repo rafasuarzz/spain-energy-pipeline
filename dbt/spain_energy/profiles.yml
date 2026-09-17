@@ -1,9 +1,11 @@
 # Committed on purpose: the profile has no credentials (DuckDB is a local file),
 # so keeping it in the repo makes `git clone && dbt build` work out of the box.
+# The default path assumes dbt is invoked from the repo root:
+#   dbt build --project-dir dbt/spain_energy --profiles-dir dbt/spain_energy
 spain_energy:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: "{{ env_var('ENERGY_DUCKDB_PATH', '../../data/warehouse/energy.duckdb') }}"
+      path: "{{ env_var('ENERGY_DUCKDB_PATH', 'data/warehouse/energy.duckdb') }}"
       threads: 4
